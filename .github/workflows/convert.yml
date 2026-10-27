@@ -1,0 +1,41 @@
+name: Convert audio to DFPWM
+
+on:
+  push:
+    paths: ['**.mp3', '**.MP3', '**.wav', '**.ogg', '**.m4a', '**.flac']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Convert new audio files
+        run: |
+          shopt -s nullglob nocaseglob
+          made=0
+          for f in *.mp3 *.wav *.ogg *.m4a *.flac; do
+            out="${f%.*}.dfpwm"
+            if [ ! -f "$out" ]; then
+              echo "Converting $f -> $out"
+              ffmpeg -y -loglevel error -i "$f" -ac 1 -ar 48000 -c:a dfpwm -f dfpwm "$out"
+              made=$((made + 1))
+            fi
+          done
+          echo "made=$made" >> "$GITHUB_ENV"
+
+      - name: Save converted files
+        if: env.made != '0'
+        run: |
+          git config user.name "audio-converter"
+          git config user.email "actions@github.com"
+          git add *.dfpwm
+          git commit -m "Convert audio to DFPWM"
+          git push
